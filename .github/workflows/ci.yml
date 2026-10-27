@@ -1,0 +1,26 @@
+
+name: CI Basics
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  readme-check:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Get repository files
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Check README exists
+        run: |
+          test -f README.md
+          echo "README check passed"
