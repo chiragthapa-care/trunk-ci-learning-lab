@@ -24,4 +24,3 @@ jobs:
         run: |
           test -f README.md
           echo "README check passed"
-          exit 1
