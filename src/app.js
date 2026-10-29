@@ -38,7 +38,7 @@ export function handleRequest(request, response) {
     }
 
     sendJson(response, 200, {
-      message: `Hello, ${name}!`
+      message: `Goodbye, ${name}!`
     });
     return;
   }
