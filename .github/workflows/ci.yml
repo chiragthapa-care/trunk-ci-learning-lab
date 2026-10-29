@@ -24,3 +24,25 @@ jobs:
         run: |
           test -f README.md
           echo "README check passed"
+
+  app-tests:
+    name: Application tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Get repository files
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          package-manager-cache: false
+
+      - name: Check JavaScript syntax
+        run: npm run check
+
+      - name: Run API integration tests
+        run: npm test
