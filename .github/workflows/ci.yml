@@ -46,3 +46,38 @@ jobs:
 
       - name: Run API integration tests
         run: npm test
+
+  package-artifact:
+    name: Package release artifact
+    needs: [readme-check, app-tests]
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Get repository files
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Setup up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          package-manager-cache: false
+
+      - name: Package application
+        run: npm run package
+
+      - name: Verfify release package
+        run: |
+          tar -tzf dist/app-release.tar.gz
+          sha256sum dist/app-release.tar.gz
+          echo "Release package verification passed"
+
+      - name: Upload release package
+        uses: actions/upload-artifact@v3
+        with:
+          name: app-release
+          path: dist/app-release.tar.gz
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0
