@@ -51,6 +51,9 @@ jobs:
     needs: [readme-check, app-tests]
     runs-on: ubuntu-latest
 
+    outputs:
+      release_sha256: ${{ steps.checksum.outputs.release_sha256 }}
+
     steps:
       - name: Get repository files
         uses: actions/checkout@v7
@@ -66,10 +69,16 @@ jobs:
       - name: Package application
         run: npm run package
 
-      - name: Verfify release package
+      - name: Verify release package and calculate SHA-256
+        id: checksum
         run: |
+          set -euo pipefail
+          test -f dist/app-release.tar.gz
           tar -tzf dist/app-release.tar.gz
-          sha256sum dist/app-release.tar.gz
+
+          SHA256=$(sha256sum dist/app-release.tar.gz | awk '{print $1}')
+          echo "Original release SHA-256: $SHA256"
+          echo "release_sha256=$SHA256" >> "$GITHUB_OUTPUT"
           echo "Release package verification passed"
 
       - name: Upload release package
@@ -91,6 +100,7 @@ jobs:
         with:
           name: app-release
           path: downloaded
+          skip-decompress: true
           digest-mismatch: error
 
       - name: Verify downloaded release
@@ -98,6 +108,12 @@ jobs:
           EXPECTED_SHA256: ${{ needs.package-artifact.outputs.release_sha256 }}
         run: |
           set -euo pipefail
+
+          # Inspect downloaded files and verify the expected checksum is present.
+          echo "Downloaded files:"
+          ls -lah downloaded/
+          test -n "$EXPECTED_SHA256"
+
           # Verify the downloaded ZIP exists.
           test -f downloaded/app-release.zip
 
