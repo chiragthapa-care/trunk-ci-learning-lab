@@ -218,3 +218,104 @@ jobs:
             | grep -Fq '"message":"Hello, Alex!"'
 
           echo "Development smoke tests passed."
+  
+
+  simulate-staging:
+    name: Simulated staging acceptance test
+    needs: [package-artifact, simulate-dev]
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download release artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: app-release
+          path: downloaded
+          skip-decompress: false
+          digest-mismatch: error
+
+      - name: Verify and extract staging release
+        env:
+          EXPECTED_SHA256: ${{ needs.package-artifact.outputs.release_sha256 }}
+        run: |
+          set -euo pipefail
+
+          test -f downloaded/app-release.tar.gz
+          [[ "$EXPECTED_SHA256" =~ ^[0-9a-fA-F]{64}$ ]]
+
+          printf '%s  %s\n' \
+            "$EXPECTED_SHA256" \
+            "downloaded/app-release.tar.gz" \
+            | sha256sum -c -
+
+          mkdir -p staging-app
+          tar -xzf downloaded/app-release.tar.gz -C staging-app
+
+          test -f staging-app/package.json
+          test -f staging-app/src/app.js
+          test -f staging-app/src/server.js
+
+          echo "Staging artifact verified and extracted."
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          package-manager-cache: false
+
+      - name: Start application and run staging tests
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          PORT=43128 node staging-app/src/server.js \
+            > "$RUNNER_TEMP/staging-server.log" 2>&1 &
+
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+
+          ready=0
+          for attempt in {1..20}; do
+            if curl -fsS http://127.0.0.1:43128/health \
+                > /dev/null 2>&1; then
+              ready=1
+              break
+            fi
+            sleep 1
+          done
+
+          if [ "$ready" -ne 1 ]; then
+            cat "$RUNNER_TEMP/staging-server.log"
+            exit 1
+          fi
+
+          # Validate successful responses.
+          curl -fsS http://127.0.0.1:43128/health \
+            | grep -Fq '"status":"ok"'
+
+          curl -fsS \
+            'http://127.0.0.1:43128/greet?name=Alex' \
+            | grep -Fq '"message":"Hello, Alex!"'
+
+          # Validate HTTP error responses.
+          check_status() {
+            expected="$1"
+            shift
+
+            actual="$(curl -sS -o /dev/null \
+              -w '%{http_code}' "$@")"
+
+            echo "Expected HTTP $expected, received HTTP $actual"
+            test "$actual" = "$expected"
+          }
+
+          check_status 400 \
+            'http://127.0.0.1:43128/greet'
+
+          check_status 404 \
+            'http://127.0.0.1:43128/unknown'
+
+          check_status 405 -X POST \
+            'http://127.0.0.1:43128/health'
+
+          echo "Staging acceptance tests passed."
