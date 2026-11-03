@@ -81,3 +81,48 @@ jobs:
           if-no-files-found: error
           retention-days: 7
           compression-level: 0
+  verify-release:
+    name: Verify downloaded release
+    needs: package-artifact
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download release artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: app-release
+          path: downloaded
+          digest-mismatch: error
+
+      - name: Verify downloaded release
+        env:
+          EXPECTED_SHA256: ${{ needs.package-artifact.outputs.release_sha256 }}
+          run: |
+            set -euo pipefail
+            # Verify the downloaded ZIP exists.
+            test -f downloaded/app-release.zip
+
+            # Print SHA-256 of the outer ZIP.
+            echo "SHA-256 of app-release.zip:"
+            sha256sum downloaded/app-release.zip
+
+            # Show files inside the ZIP.
+            unzip -l downloaded/app-release.zip
+
+            # Extract the ZIP.
+            mkdir -p downloaded/extracted
+            unzip -q downloaded/app-release.zip -d downloaded/extracted
+
+            # Verify the inner release archive exists.
+            test -f downloaded/extracted/app-release.tar.gz
+
+            # Check the original release-file checksum.
+            printf '%s  %s\n' \
+              "$EXPECTED_SHA256" \
+              "downloaded/extracted/app-release.tar.gz" \
+              | sha256sum -c -
+
+            # Inspect the release package contents.
+            tar -tzf downloaded/extracted/app-release.tar.gz
+
+            echo "Downloaded release verification passed"
