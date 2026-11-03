@@ -319,6 +319,7 @@ jobs:
             'http://127.0.0.1:43128/health'
 
           echo "Staging acceptance tests passed."
+          exit 1
 
   simulate-production:
     name: Simulated production readiness check
